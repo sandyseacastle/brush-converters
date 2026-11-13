@@ -1,0 +1,196 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Procreate to Clip Studio Paint Brush Converter</title>
+  <link rel="stylesheet" href="../../assets/fonts.css">
+  <link rel="stylesheet" href="../../assets/style.css">
+  <script src="../../vendor/jszip/3.10.1/jszip.min.js"></script>
+  <script src="../../vendor/sql.js/1.8.0/sql-wasm.js"></script>
+</head>
+<body class="to-csp">
+  <div class="wrap">
+    <nav class="crumbs" id="nav" aria-label="Converters"><a class="home" href="../../">Brush Converters</a></nav>
+    <header>
+      <p class="kicker">Brush converter</p>
+      <h1><span class="c-procreate">Procreate</span><span class="to">→</span><span class="c-csp">Clip Studio Paint</span></h1>
+      <p class="subtitle">Turn Procreate brushes into Clip Studio Paint sub tools, one <code>.sut</code> per brush. It carries over the Shape image, size, opacity, spacing, pressure, rotation and grain settings.</p>
+      <p class="subtitle"><strong class="warn">Experimental:</strong> Clip Studio keeps tips in an encrypted layer format that can be read but not written, so the tip goes in as a plain image. These files aren't yet confirmed to import in Clip Studio Paint.</p>
+    </header>
+    <div class="drop" id="drop" tabindex="0" role="button" aria-label="Choose .brush or .brushset files">
+      <div class="drop-title">Drop your Procreate brushes here</div>
+      <div class="drop-hint">or click to choose. A brush set gives one <code>.sut</code> per brush.</div>
+      <div class="drop-accepts"><span class="fmt procreate"><code>.brush</code></span><span class="fmt procreate"><code>.brushset</code></span><span class="fmt procreate"><code>.zip</code> pack</span></div>
+      <div class="drop-file" id="dropFile"></div>
+      <input type="file" id="fi" accept=".brush,.brushset,.zip" multiple>
+    </div>
+    <div class="pipeline-title"><h2>How it’s converted</h2><span>each step explains what it does</span></div>
+    <div class="pipeline">
+      <div class="stg" id="s1"><div class="stg-head"><span class="stg-n">01</span><span class="stg-name">Read Brushes</span><span class="stg-badge wait" id="b1">pending</span></div>
+      <div class="stg-body"><div class="stg-info">A <code>.brush</code> is a <strong>ZIP</strong>. Its <code>Brush.archive</code> is an Apple <strong>binary plist</strong> (magic <code>bplist00</code>). A 32-byte trailer locates the offset table, and every object starts with a <strong>type nibble</strong>. The plist is an <strong>NSKeyedArchive</strong>: <code>$top.root</code> points by UID into a flat <code>$objects</code> table, and resolving those UIDs gives the <code>SilicaBrush</code> settings. A <code>.brushset</code> holds one folder per brush. The <code>Reset/</code> copy some brushes carry is skipped.</div><div class="log" id="o1"></div></div></div>
+
+      <div class="stg" id="s2"><div class="stg-head"><span class="stg-n">02</span><span class="stg-name">Shape &amp; Grain</span><span class="stg-badge wait" id="b2">pending</span></div>
+      <div class="stg-body"><div class="stg-info">Procreate paints with <strong>white</strong>, and CSP with <strong>dark ink</strong>, so the shape is inverted. Brushes that use one of Procreate's <strong>built-in</strong> shapes only store its name, so common ones (hard, soft, oval) are approximated.</div>
+      <div class="tex-row" id="mats"></div><div class="log" id="o2"></div></div></div>
+
+      <div class="stg" id="s3"><div class="stg-head"><span class="stg-n">03</span><span class="stg-name">Map Settings</span><span class="stg-badge wait" id="b3">pending</span></div>
+      <div class="stg-body"><div class="stg-info">Procreate keys map onto CSP <code>Variant</code> columns. The mapping is <strong class="c-ok">direct</strong> where the two apps mean the same thing and <strong class="warn">approximate</strong> where they don't quite. Brush sizes are estimates, since Procreate doesn't document its size unit. The table shows the first brush.</div>
+      <div class="ptbl-wrap"><table class="ptbl"><thead><tr><th>Procreate Key</th><th>Value</th><th>CSP Column</th><th>Fidelity</th></tr></thead><tbody id="ptbody"></tbody></table></div>
+      <div class="log" id="o3"></div></div></div>
+
+      <div class="stg" id="s4"><div class="stg-head"><span class="stg-n">04</span><span class="stg-name">Write .sut</span><span class="stg-badge wait" id="b4">pending</span></div>
+      <div class="stg-body"><div class="stg-info">A CSP <code>.sut</code> is a <strong>SQLite 3 database</strong> with three tables. <code>Node</code> holds the name, <code>Variant</code> holds the settings as typed columns, and <code>MaterialFile</code> holds the tip as a <strong>tar archive</strong> containing <code>thumbnail/thumbnail.png</code>. It's built with <strong>sql.js</strong> (SQLite compiled to WebAssembly). Several brushes are downloaded together as a <code>.zip</code>.</div><div class="log" id="o4"></div></div></div>
+    </div>
+  </div>
+
+  <script type="module">
+    import { writeSut } from '../../lib/csp/write.js';
+    import { browserImaging, decodeImage, fitMask, maskToCanvas } from '../../lib/image.js';
+    import { slug } from '../../lib/krita/preset.js';
+    import { renderNav } from '../../lib/nav.js';
+    import { padSquare } from '../../lib/pixels.js';
+    import { bundledShapeGuess, readProcreateFiles, shapeMask } from '../../lib/procreate/read.js';
+    import { settingsWarnings } from '../../lib/procreate/settings.js';
+    import { badge, detailsAction, download, escapeHtml, failRunning, formatSize, imageCard, latestOnly, loadSql, log, progress, readFiles, resetStages, setResult, setupDrop, uniqueNamer } from '../../lib/ui.js';
+
+    renderNav('procreate', 'csp');
+    const STAGES = 4;
+    const MAX_TIP = 1024;
+    const MAX_PREVIEWS = 16;
+
+    const f3 = (v) => (typeof v === 'number' ? (Number.isInteger(v) ? String(v) : v.toFixed(3)) : String(v));
+    // [Procreate keys, settings value -> CSP column text, fidelity]
+    const TABLE = [
+      [['paintSize', 'maxSize', 'minSize'], (s) => `BrushSize ← ${Math.round(s.size)} px`, 'apx'],
+      [['paintOpacity'], (s) => `Opacity ← ${f3(s.opacity * 100)}`, 'dir'],
+      [['dynamicsGlazedFlow'], (s) => `BrushFlow ← ${f3(s.flow * 100)}`, 'apx'],
+      [['plotSpacing'], (s) => `BrushInterval ← ${f3(s.spacing * 100)}`, 'dir'],
+      [['plotJitter'], (s) => `SprayDeviation ← ${f3(s.jitter * 100)}`, 'apx'],
+      [['plotSmoothing'], (s) => `BrushRevision ← ${Math.min(20, Math.round(s.streamline * 20))}`, 'apx'],
+      [['dynamicsPressureSize'], (s) => `BrushSizeMin ← ${f3(s.size * (1 - s.pressureSize))}`, 'dir'],
+      [['dynamicsPressureOpacity'], (s) => `PaintOpacityMin ← ${f3((1 - s.pressureOpacity) * 100)}`, 'dir'],
+      [['dynamicsSpeedSize'], (s) => `DynSpeedSize ← ${f3(s.speedSize)}`, 'apx'],
+      [['shapeAngle'], (s) => `BrushRotation ← ${f3(s.angle)}°`, 'dir'],
+      [['shapeRoundness'], (s) => `BrushThickness ← ${f3(s.roundness * 100)}`, 'dir'],
+      [['shapeRotation'], (s) => `Oriented ← ${s.followStroke ? 1 : 0}`, 'apx'],
+      [['shapeScatter', 'shapeRandomise'], (s) => `DirectionRange ← ${s.randomRotation || s.rotationJitter > 0.01 ? 360 : 0}`, 'apx'],
+      [['grainDepth'], (s) => `TextureDensity ← ${f3(s.hasGrain ? s.grainDepth * 100 : 0)}`, 'apx'],
+      [['textureScale'], (s) => `TextureScale ← ${f3(s.grainScale * 100)}`, 'apx'],
+      [['taperStartLength', 'taperEndLength'], (s) => `BrushInLength / BrushOutLength ← ${f3(s.taperStart * 100)} / ${f3(s.taperEnd * 100)}`, 'apx'],
+    ];
+
+    function table(b) {
+      const tb = document.getElementById('ptbody');
+      tb.replaceChildren();
+      for (const [keys, to, f] of TABLE) {
+        const present = keys.filter((k) => b.raw[k] !== undefined);
+        if (!present.length) continue;
+        const tr = document.createElement('tr');
+        tr.innerHTML = `<td>${escapeHtml(present.join(', '))}</td><td>${escapeHtml(present.map((k) => f3(b.raw[k])).join(', '))}</td>`
+          + `<td>${escapeHtml(to(b.settings))}</td><td><span class="${f}">${f === 'dir' ? 'direct' : 'approx'}</span></td>`;
+        tb.appendChild(tr);
+      }
+    }
+
+    let out = null;
+
+    async function run(files) {
+      out = null;
+      document.getElementById('mats').replaceChildren();
+      document.getElementById('ptbody').replaceChildren();
+      resetStages(STAGES, `Converting ${files.length} file${files.length === 1 ? '' : 's'}…`);
+      try {
+        // 1. Read
+        badge(1, 'run');
+        const { brushes, errors } = await readProcreateFiles(window.JSZip, await readFiles(files), (i, n) => progress(1, i, n));
+        let failed = errors.length;
+        for (const e of errors) log(1, `! ${e}`, 'r');
+        for (const b of brushes) log(1, `${b.name}: ${Object.keys(b.raw).length} settings  (${b.file})`, 'g');
+        if (!brushes.length) throw new Error(errors[0] || 'no Procreate brushes found in what was dropped');
+        badge(1, 'ok');
+
+        // 2. Shape & grain
+        badge(2, 'run');
+        const mats = document.getElementById('mats');
+        for (const [i, b] of brushes.entries()) {
+          progress(2, i + 1, brushes.length);
+          const img = b.shape ? await decodeImage(b.shape).catch(() => null) : null;
+          b.warnings = settingsWarnings({ ...b.settings, hasGrain: !!b.grain });
+          if (img) {
+            b.tip = shapeMask(img, b.settings.shapeInverted);
+            log(2, `${b.name}: Shape.png ${img.width}×${img.height}`, 'g');
+          } else {
+            const guess = bundledShapeGuess(b.settings.bundledShape);
+            b.tip = browserImaging.circleMask(guess ? guess.hardness : 1);
+            if (guess && guess.ratio < 1) b.settings.roundness *= guess.ratio;
+            const why = b.settings.bundledShape ? `built-in shape '${b.settings.bundledShape}' isn't in the file` : 'no Shape.png';
+            b.warnings.push(`${why}; ${guess ? 'approximated' : 'using a round tip'}`);
+            log(2, `${b.name}: ${why}; ${guess ? 'approximated' : 'round tip'}`, 'w');
+          }
+          b.settings.hasGrain = !!b.grain;
+          if (b.grain) { b.warnings.push("Grain.png not carried over: only the tip image can be stored"); log(2, '  Grain.png not carried over: only the tip image can be stored', 'w'); }
+          b.tip = fitMask(padSquare(b.tip), MAX_TIP, 'gray');
+          if (i < MAX_PREVIEWS) {
+            mats.append(imageCard(maskToCanvas(b.tip, 'gray'), 'Shape', b.name, false));
+            mats.append(imageCard(maskToCanvas({ ...b.tip, data: b.tip.data.map((v) => 255 - v) }, 'gray'), 'CSP tip', b.name));
+          }
+        }
+        badge(2, 'ok');
+
+        // 3. Settings
+        badge(3, 'run');
+        table(brushes[0]);
+        for (const b of brushes) {
+          log(3, `${b.name}: ${Math.round(b.settings.size)} px, spacing ${f3(b.settings.spacing)}, pressure size ${f3(b.settings.pressureSize)}, pressure opacity ${f3(b.settings.pressureOpacity)}`, 'g');
+          for (const w of b.warnings) log(3, `   - ${w}`, 'w');
+        }
+        badge(3, 'ok');
+
+        // 4. .sut
+        badge(4, 'run');
+        log(4, 'Loading sql.js (WebAssembly)…', 'd');
+        const SQL = await loadSql();
+        const name = uniqueNamer();
+        const suts = [];
+        for (const [i, b] of brushes.entries()) {
+          progress(4, i + 1, brushes.length);
+          try {
+            const data = await writeSut(SQL, b.settings, b.tip);
+            const filename = name(slug(b.name), '.sut');
+            suts.push({ filename, data });
+            log(4, `${filename}  ${formatSize(data.length)}  (Node, Variant ×2, MaterialFile)`, 'd');
+          } catch (e) {
+            console.error(e);
+            log(4, `! ${b.name}: ${e.message}`, 'r');
+            failed++;
+          }
+        }
+        if (!suts.length) throw new Error('no .sut could be written');
+        if (suts.length === 1) out = { blob: new Blob([suts[0].data], { type: 'application/octet-stream' }), filename: suts[0].filename };
+        else {
+          const zip = new window.JSZip();
+          for (const s of suts) zip.file(s.filename, s.data);
+          const stem = files.length === 1 ? files[0].name.replace(/\.(brush|brushset|zip)$/i, '') : 'Procreate Brushes';
+          out = { blob: await zip.generateAsync({ type: 'blob', compression: 'DEFLATE' }), filename: `${slug(stem)} (CSP).zip` };
+        }
+        log(4, `\n${out.filename}: ${formatSize(out.blob.size)}`, 'c');
+        badge(4, 'ok');
+        const warned = brushes.filter((b) => b.warnings.length).length;
+        setResult({
+          state: 'ok',
+          title: `${suts.length} brush${suts.length === 1 ? '' : 'es'} → ${out.filename} (${formatSize(out.blob.size)})`,
+          detail: `Import in CSP: File → Import Sub Tool${suts.length > 1 ? ', one .sut at a time (unzip first)' : ''}. Experimental: CSP-native tip layers can't be written, so the tip is stored as an image and CSP may not accept the file.`
+            + (warned ? ` ${warned} brush${warned === 1 ? ' has' : 'es have'} settings that couldn't be carried over — see step 03.` : '')
+            + (failed ? ` ${failed} item(s) failed — see the steps below.` : ''),
+          actions: [{ label: `Download ${suts.length === 1 ? '.sut' : '.zip'}`, primary: true, onClick: () => download(out.blob, out.filename) }, detailsAction],
+        });
+      } catch (e) {
+        failRunning(STAGES, e, 'Drop Procreate .brush or .brushset files.');
+      }
+    }
+
+    setupDrop({ accept: ['.brush', '.brushset', '.zip'], onFiles: latestOnly(run) });
+  </script>
+</body>
+</html>

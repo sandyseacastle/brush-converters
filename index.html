@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Brush Converters</title>
+  <meta name="description" content="Move brushes between Procreate, Clip Studio Paint and Krita, and bring Photoshop brushes into Krita, right in your browser.">
+  <link rel="stylesheet" href="assets/fonts.css">
+  <link rel="stylesheet" href="assets/style.css">
+</head>
+<body class="to-krita">
+  <div class="wrap">
+    <header>
+      <p class="kicker"><span class="c-procreate">Procreate</span> · <span class="c-csp">Clip Studio Paint</span> · <span class="c-krita">Krita</span> · <span class="c-photoshop">Photoshop</span></p>
+      <h1>Move your brushes between painting apps</h1>
+      <p class="subtitle">Convert brushes between any two of Procreate, Clip Studio Paint and Krita, and bring Photoshop brushes into Krita. Drop in a brush file and get one the other app can import: tips, textures, pressure curves and all. Everything happens in your browser, and your files never leave your computer.</p>
+    </header>
+
+    <nav class="routes" aria-label="Converters">
+      <section class="route-group" aria-labelledby="from-csp">
+        <h2 id="from-csp"><span class="from">From</span> <span class="c-csp">Clip Studio Paint</span></h2>
+        <div class="route-pair">
+        <a class="route to-krita" href="tools/csp-to-krita/">
+          <span class="route-line">
+            <span class="fmt csp"><span class="app">Clip Studio Paint</span> <code>.sut</code></span>
+            <span class="arrow" aria-hidden="true">→</span>
+            <span class="fmt krita"><span class="app">Krita</span> <code>.bundle</code></span>
+          </span>
+          <span class="route-title">To Krita <span class="tag ok">tested in Krita 5.3 &amp; 6.0</span></span>
+          <span class="route-desc">One brush, a folder or a whole <code>.zip</code> pack becomes a single Krita bundle. Full-resolution tips and paper textures, pressure curves, spacing, rotation, scatter and dual brushes all carry over.</span>
+          <span class="route-go">Convert to Krita →</span>
+        </a>
+        <a class="route to-procreate" href="tools/csp-to-procreate/">
+          <span class="route-line">
+            <span class="fmt csp"><span class="app">Clip Studio Paint</span> <code>.sut</code></span>
+            <span class="arrow" aria-hidden="true">→</span>
+            <span class="fmt procreate"><span class="app">Procreate</span> <code>.brush</code></span>
+          </span>
+          <span class="route-title">To Procreate</span>
+          <span class="route-desc">Full-resolution Shape and Grain images, size and opacity pressure, spacing and rotation, packed into a <code>.brush</code> you can AirDrop to your iPad.</span>
+          <span class="route-go">Convert to Procreate →</span>
+        </a>
+        </div>
+      </section>
+      <section class="route-group" aria-labelledby="from-procreate">
+        <h2 id="from-procreate"><span class="from">From</span> <span class="c-procreate">Procreate</span></h2>
+        <div class="route-pair">
+        <a class="route to-krita" href="tools/procreate-to-krita/">
+          <span class="route-line">
+            <span class="fmt procreate"><span class="app">Procreate</span> <code>.brush / .brushset</code></span>
+            <span class="arrow" aria-hidden="true">→</span>
+            <span class="fmt krita"><span class="app">Krita</span> <code>.bundle</code></span>
+          </span>
+          <span class="route-title">To Krita <span class="tag ok">tested in Krita 5.3 &amp; 6.0</span></span>
+          <span class="route-desc">Brushes and whole <code>.brushset</code>s become one Krita bundle. Shape and Grain images, size and opacity pressure, speed, jitter and rotation carry over.</span>
+          <span class="route-go">Convert to Krita →</span>
+        </a>
+        <a class="route to-csp" href="tools/procreate-to-csp/">
+          <span class="route-line">
+            <span class="fmt procreate"><span class="app">Procreate</span> <code>.brush / .brushset</code></span>
+            <span class="arrow" aria-hidden="true">→</span>
+            <span class="fmt csp"><span class="app">Clip Studio Paint</span> <code>.sut</code></span>
+          </span>
+          <span class="route-title">To Clip Studio Paint <span class="tag exp">experimental</span></span>
+          <span class="route-desc">Writes a <code>.sut</code> from the brush settings and Shape image. Clip Studio's own tip format can't be recreated, so the tip goes in as a plain image, and CSP may not accept the file.</span>
+          <span class="route-go">Convert to Clip Studio Paint →</span>
+        </a>
+        </div>
+      </section>
+      <section class="route-group" aria-labelledby="from-krita">
+        <h2 id="from-krita"><span class="from">From</span> <span class="c-krita">Krita</span></h2>
+        <div class="route-pair">
+        <a class="route to-procreate" href="tools/krita-to-procreate/">
+          <span class="route-line">
+            <span class="fmt krita"><span class="app">Krita</span> <code>.bundle / .kpp</code></span>
+            <span class="arrow" aria-hidden="true">→</span>
+            <span class="fmt procreate"><span class="app">Procreate</span> <code>.brushset</code></span>
+          </span>
+          <span class="route-title">To Procreate</span>
+          <span class="route-desc">A bundle or <code>.kpp</code> presets become a <code>.brushset</code>. Tips (generated, image or animated), textures, pressure and speed curves, rotation and scatter carry over.</span>
+          <span class="route-go">Convert to Procreate →</span>
+        </a>
+        <a class="route to-csp" href="tools/krita-to-csp/">
+          <span class="route-line">
+            <span class="fmt krita"><span class="app">Krita</span> <code>.bundle / .kpp</code></span>
+            <span class="arrow" aria-hidden="true">→</span>
+            <span class="fmt csp"><span class="app">Clip Studio Paint</span> <code>.sut</code></span>
+          </span>
+          <span class="route-title">To Clip Studio Paint <span class="tag exp">experimental</span></span>
+          <span class="route-desc">One <code>.sut</code> per preset, from the same settings and tips. Like the Procreate route, the tip goes in as a plain image, and CSP may not accept the file.</span>
+          <span class="route-go">Convert to Clip Studio Paint →</span>
+        </a>
+        </div>
+      </section>
+      <section class="route-group" aria-labelledby="from-photoshop">
+        <h2 id="from-photoshop"><span class="from">From</span> <span class="c-photoshop">Photoshop</span></h2>
+        <div class="route-pair">
+        <a class="route to-krita" href="tools/photoshop-to-krita/">
+          <span class="route-line">
+            <span class="fmt photoshop"><span class="app">Photoshop</span> <code>.abr</code></span>
+            <span class="arrow" aria-hidden="true">→</span>
+            <span class="fmt krita"><span class="app">Krita</span> <code>.bundle</code></span>
+          </span>
+          <span class="route-title">To Krita <span class="tag ok">tested in Krita 5.3 &amp; 6.0</span></span>
+          <span class="route-desc">Brush files from any Photoshop version, or a <code>.zip</code> pack of them, become one Krita bundle. Tips and textures come across at full resolution, along with size, angle and roundness dynamics, scattering, dual brushes, colour jitter, and the brush folders as tags.</span>
+          <span class="route-go">Convert to Krita →</span>
+        </a>
+        </div>
+      </section>
+    </nav>
+
+    <h2>What's inside each format</h2>
+    <div class="formats">
+      <section class="format procreate">
+        <h3>Procreate <code>.brush</code></h3>
+        <p>A ZIP holding <code>Brush.archive</code>, an Apple binary plist of the brush settings. Next to it sit <code>Shape.png</code> and <code>Grain.png</code>, where white means paint.</p>
+      </section>
+      <section class="format csp">
+        <h3>Clip Studio <code>.sut</code></h3>
+        <p>A SQLite database with one column per setting. Pressure curves are packed into binary "effector" blobs. Tips live in their own encrypted-header layer files.</p>
+      </section>
+      <section class="format krita">
+        <h3>Krita <code>.bundle</code></h3>
+        <p>A ZIP with a checksum manifest. Each preset is a PNG thumbnail with the settings hidden in a text chunk, next to its tips and textures.</p>
+      </section>
+      <section class="format photoshop">
+        <h3>Photoshop <code>.abr</code></h3>
+        <p>Tagged binary sections: the tip images, the patterns, and every preset's settings in Photoshop's own key-value "descriptor" format. Files from Photoshop 6 and earlier are a plain list of tips.</p>
+      </section>
+    </div>
+    <p class="note">The apps paint with different brush engines, so no conversion is exact. Each converter lists the settings it couldn't carry over, so you know what to tweak.</p>
+
+    <footer>Conversions run entirely on this page. Nothing is uploaded.</footer>
+  </div>
+</body>
+</html>

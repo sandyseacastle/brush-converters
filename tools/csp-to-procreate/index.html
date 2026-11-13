@@ -1,0 +1,214 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>CSP to Procreate Brush Converter</title>
+  <link rel="stylesheet" href="../../assets/fonts.css">
+  <link rel="stylesheet" href="../../assets/style.css">
+  <script src="../../vendor/jszip/3.10.1/jszip.min.js"></script>
+  <script src="../../vendor/sql.js/1.8.0/sql-wasm.js"></script>
+</head>
+<body class="to-procreate">
+  <div class="wrap">
+    <nav class="crumbs" id="nav" aria-label="Converters"><a class="home" href="../../">Brush Converters</a></nav>
+    <header>
+      <p class="kicker">Brush converter</p>
+      <h1><span class="c-csp">Clip Studio Paint</span><span class="to">→</span><span class="c-procreate">Procreate</span></h1>
+      <p class="subtitle">Turn a Clip Studio Paint sub tool into a Procreate <code>.brush</code>. You get the full-resolution tip and grain, plus size and opacity pressure with their minimums, spacing and orientation.</p>
+    </header>
+    <div class="drop" id="drop" tabindex="0" role="button" aria-label="Choose a .sut file">
+      <div class="drop-title">Drop a Clip Studio brush here</div>
+      <div class="drop-hint">or click to choose a sub tool file</div>
+      <div class="drop-accepts"><span class="fmt csp"><code>.sut</code></span></div>
+      <div class="drop-file" id="dropFile"></div>
+      <input type="file" id="fi" accept=".sut">
+    </div>
+    <div class="pipeline-title"><h2>How it’s converted</h2><span>each step explains what it does</span></div>
+    <div class="pipeline">
+      <div class="stg" id="s1"><div class="stg-head"><span class="stg-n">01</span><span class="stg-name">SQLite Parsing</span><span class="stg-badge wait" id="b1">pending</span></div>
+      <div class="stg-body"><div class="stg-info">A <code>.sut</code> is a <strong>SQLite 3 database</strong>. <code>Node</code> holds the brush name and links to its settings. <code>Variant</code> holds every parameter as a typed column, with dynamics stored as binary "effector" blobs. <code>MaterialFile</code> holds the images. We open it with <strong>sql.js</strong>, which is SQLite compiled to WebAssembly.</div><div class="log" id="o1"></div></div></div>
+
+      <div class="stg" id="s2"><div class="stg-head"><span class="stg-n">02</span><span class="stg-name">Material Extraction</span><span class="stg-badge wait" id="b2">pending</span></div>
+      <div class="stg-body"><div class="stg-info">Each <code>MaterialFile</code> BLOB is a <strong>tar archive</strong>. Inside it, a <code>.layer</code> file wraps an encrypted-header SQLite database, and we decode its <strong>zlib pixel tiles</strong> at full resolution. CSP takes the tip shape from <strong>transparency</strong>. Procreate wants <strong>white = paint on black</strong>, so we draw the shape that way. Paper textures are flattened and inverted into <code>Grain.png</code>.</div>
+      <div class="tex-row">
+        <div class="tex-card"><canvas id="cv_csp" width="200" height="200" class="light" role="img" aria-label="CSP tip"></canvas><div class="tex-lbl"><b>CSP tip</b> as decoded</div></div>
+        <div class="tex-card"><canvas id="cv_pc" width="200" height="200" role="img" aria-label="Procreate shape"></canvas><div class="tex-lbl"><b>Shape.png</b> white = paint</div></div>
+        <div class="tex-card"><canvas id="cv_grain" width="200" height="200" role="img" aria-label="Procreate grain"></canvas><div class="tex-lbl"><b>Grain.png</b> <span id="grainLbl">none</span></div></div>
+      </div>
+      <div class="log" id="o2"></div></div></div>
+
+      <div class="stg" id="s3"><div class="stg-head"><span class="stg-n">03</span><span class="stg-name">Parameter Mapping</span><span class="stg-badge wait" id="b3">pending</span></div>
+      <div class="stg-body"><div class="stg-info">Maps CSP <code>Variant</code> columns onto Procreate's <strong>SilicaBrush</strong> keys, the same names Procreate itself writes. Pressure settings come from the decoded effectors: size and opacity pressure with their <strong>minimums</strong>. Spacing uses CSP's fixed / narrow / normal / wide setting, and rotation follows the stroke or is random.</div>
+      <div class="ptbl-wrap"><table class="ptbl"><thead><tr><th>CSP Column</th><th>Value</th><th>Procreate Key</th><th>Fidelity</th></tr></thead><tbody id="ptbody"></tbody></table></div>
+      <div class="log" id="o3"></div></div></div>
+
+      <div class="stg" id="s4"><div class="stg-head"><span class="stg-n">04</span><span class="stg-name">Binary Plist Serialization</span><span class="stg-badge wait" id="b4">pending</span></div>
+      <div class="stg-body"><div class="stg-info">We write a <code>bplist00</code> file from scratch. This means building the full <strong>NSKeyedArchive</strong> object graph (<code>$archiver</code>, <code>$version</code>, <code>$top</code>, <code>$objects</code>) and serialising every object with its <strong>type nibble</strong>. Numbers are big-endian, followed by an offset table and a 32-byte trailer. The root <code>SilicaBrush</code> object sits at <code>$objects[1]</code>.</div><div class="log" id="o4"></div></div></div>
+
+      <div class="stg" id="s5"><div class="stg-head"><span class="stg-n">05</span><span class="stg-name">ZIP Packaging</span><span class="stg-badge wait" id="b5">pending</span></div>
+      <div class="stg-body"><div class="stg-info">The <code>.brush</code> ZIP holds four files:
+        <ul>
+          <li><code>Brush.archive</code>: the binary plist.</li>
+          <li><code>Shape.png</code>: the tip.</li>
+          <li><code>Grain.png</code>: the texture, if the brush has one.</li>
+          <li><code>QuickLook/Thumbnail.png</code>: a sample stroke.</li>
+        </ul>
+        Import it into Procreate via AirDrop or the Files app.</div><div class="log" id="o5"></div></div></div>
+    </div>
+  </div>
+
+  <script type="module">
+    import { coverage, flattenGray, isEmpty, padSquare } from '../../lib/pixels.js';
+    import { browserImaging, canvasToPng, decodeImage, maskToCanvas, resizeMask } from '../../lib/image.js';
+    import { readSut } from '../../lib/csp/sut.js';
+    import { isBytes } from '../../lib/bytes.js';
+    import { renderStroke } from '../../lib/krita/kpp.js';
+    import { renderNav } from '../../lib/nav.js';
+    import { grayPng } from '../../lib/png.js';
+    import { cspToSettings } from '../../lib/procreate/from-csp.js';
+    import { archiveFromSettings } from '../../lib/procreate/settings.js';
+    import { uuid, writeBrush } from '../../lib/procreate/write.js';
+    import { buildBrushArchive } from '../../lib/bplist.js';
+    import { badge, detailsAction, download, escapeHtml, failRunning, formatSize, latestOnly, loadSql, log, resetStages, setResult, setupDrop, showCanvas } from '../../lib/ui.js';
+
+    renderNav('csp', 'procreate');
+    const STAGES = 5;
+    const MAX_SHAPE = 2048;
+
+    function row([csp, value, to, f]) {
+      const tr = document.createElement('tr');
+      const cls = f === 'image' ? 'dir' : f;
+      tr.innerHTML = [csp, value, to].map((c) => `<td>${escapeHtml(c)}</td>`).join('')
+        + `<td><span class="${cls}">${f === 'dir' ? 'direct' : f === 'apx' ? 'approx' : f === 'image' ? 'image' : 'none'}</span></td>`;
+      document.getElementById('ptbody').appendChild(tr);
+    }
+
+    /** Tip shape for Procreate: white = paint on black, square, at most MAX_SHAPE px. */
+    async function shapeFrom(brush, warn) {
+      let mask = null;
+      for (const tip of brush.tips) {
+        const cov = coverage(tip.image);
+        if (!isEmpty(cov)) { mask = padSquare(cov); break; }
+      }
+      if (brush.tips.length > 1) warn(`brush has ${brush.tips.length} tips; Procreate gets the first`);
+      if (!mask) {
+        mask = browserImaging.circleMask((brush.params.BrushHardness ?? 100) / 100);
+        warn(brush.tips.length ? 'tip image is empty; using a round tip' : 'round tip (no image): generated from hardness');
+      }
+      if (mask.width > MAX_SHAPE) mask = resizeMask(mask, MAX_SHAPE);
+      return mask;
+    }
+
+    let brushOut = null;
+
+    async function run([file]) {
+      brushOut = null;
+      document.getElementById('ptbody').replaceChildren();
+      document.getElementById('grainLbl').textContent = 'none';
+      for (const id of ['cv_csp', 'cv_pc', 'cv_grain']) {
+        const c = document.getElementById(id); c.getContext('2d').clearRect(0, 0, c.width, c.height);
+      }
+      resetStages(STAGES, `Converting ${file.name}…`);
+      try {
+        // 1. SQLite
+        badge(1, 'run');
+        log(1, `File: ${file.name} (${(file.size / 1024).toFixed(1)} KB)`);
+        log(1, 'Loading sql.js (WebAssembly)…', 'd');
+        const SQL = await loadSql();
+        const bytes = new Uint8Array(await file.arrayBuffer());
+        const sig = new TextDecoder().decode(bytes.subarray(0, 15));
+        log(1, `Signature: "${sig}"`, 'l');
+        if (sig !== 'SQLite format 3') throw new Error('Not a SQLite database — is this a valid .sut file?');
+        const brushes = await readSut(SQL, bytes, { fileName: file.name, decodePng: decodeImage });
+        if (!brushes.length) throw new Error('No brush (Node with a Variant) found in this file');
+        const brush = brushes[0];
+        const p = brush.params;
+        log(1, `Brush: "${brush.name}"`, 'c');
+        if (brushes.length > 1) log(1, `${brushes.length} brushes in this file; converting the first`, 'w');
+        const cols = Object.keys(p);
+        log(1, `Variant: ${cols.length} columns, ${cols.filter((c) => isBytes(p[c])).length} binary`, 'g');
+        badge(1, 'ok');
+
+        // 2. Materials
+        badge(2, 'run');
+        const extra = [];
+        const warn = (w) => { extra.push(w); log(2, `! ${w}`, 'w'); };
+        brush.warnings.forEach((w) => log(2, `! ${w}`, 'w'));
+        for (const t of brush.tips) log(2, `tip "${t.name}": ${t.image.width}×${t.image.height} from ${t.source}`, t.source === 'layer' ? 'g' : 'w');
+        if (brush.tips[0]) showCanvas('cv_csp', maskToCanvas(coverage(brush.tips[0].image)));
+        const shape = await shapeFrom(brush, warn);
+        const shapePng = await grayPng(shape);
+        showCanvas('cv_pc', maskToCanvas(shape, 'gray'));
+        log(2, `Shape.png: ${shape.width}×${shape.height}, ${(shapePng.length / 1024).toFixed(1)} KB`, 'g');
+        let grainPng = null;
+        if (brush.texture) {
+          const flat = flattenGray(brush.texture.image);
+          const inv = { ...flat, data: flat.data.map((v) => 255 - v) };
+          const k = MAX_SHAPE / Math.max(inv.width, inv.height);
+          const sized = k < 1 ? resizeMask(inv, Math.round(inv.width * k), Math.round(inv.height * k), 'gray') : inv;
+          grainPng = await grayPng(sized);
+          showCanvas('cv_grain', maskToCanvas(sized, 'gray'));
+          document.getElementById('grainLbl').textContent = brush.texture.name;
+          log(2, `Grain.png from texture "${brush.texture.name}": ${sized.width}×${sized.height}`, 'g');
+        } else log(2, 'No paper texture', 'd');
+        badge(2, 'ok');
+
+        // 3. Parameters
+        badge(3, 'run');
+        const { settings, warnings, rows, counts } = cspToSettings(brush);
+        settings.hasGrain = !!grainPng;
+        rows.forEach(row);
+        for (const w of warnings.slice(brush.warnings.length)) log(3, `! ${w}`, 'w');
+        const pc = archiveFromSettings(settings, uuid());
+        log(3, `Mapped: direct=${counts.dir} approx=${counts.apx} none=${counts.non} unmapped=${counts.unmapped}`, 'c');
+        log(3, `Procreate keys: ${Object.keys(pc).length}`, 'g');
+        badge(3, 'ok');
+        const allWarnings = [...new Set([...warnings, ...extra])];
+
+        // 4. Binary plist
+        badge(4, 'run');
+        log(4, 'Building NSKeyedArchive object graph…', 'l');
+        log(4, `  $objects[1] = SilicaBrush (${Object.keys(pc).length} keys + $class)`, 'd');
+        const archive = buildBrushArchive(pc);
+        const t = archive.length - 32;
+        log(4, `  offsetIntSize ${archive[t + 6]}, objectRefSize ${archive[t + 7]}`, 'd');
+        log(4, `  Brush.archive: ${archive.length} bytes`, 'g');
+        badge(4, 'ok');
+
+        // 5. ZIP
+        badge(5, 'run');
+        const thumb = renderStroke({
+          mask: shape.width > 256 ? resizeMask(shape, 256, 256, 'gray') : shape,
+          size: settings.size, spacing: Math.max(settings.spacing, 0.02), angle: settings.angle,
+          sizeCurve: settings.pressureSize ? [[0, 1 - settings.pressureSize], [1, 1]] : null,
+          opacity: settings.opacity, flow: settings.flow, followLine: settings.followStroke, randomRotation: settings.rotationJitter > 0.5,
+          scatter: 0, ratio: settings.roundness, pattern: null, patternScale: 1,
+        });
+        const blob = await writeBrush(window.JSZip, { params: pc, shapePng, grainPng, thumbPng: await canvasToPng(thumb) });
+        const filename = `${file.name.replace(/\.sut$/i, '')}.brush`;
+        brushOut = { blob, filename };
+        log(5, `${filename}: ${(blob.size / 1024).toFixed(1)} KB`, 'c');
+        log(5, `  Brush.archive + Shape.png${grainPng ? ' + Grain.png' : ''} + QuickLook/Thumbnail.png`, 'd');
+        if (allWarnings.length) log(5, `${allWarnings.length} warning(s) — see steps 02 and 03`, 'w');
+        badge(5, 'ok');
+        setResult({
+          state: 'ok',
+          title: `"${brush.name}" → ${filename} (${formatSize(blob.size)})`,
+          detail: 'Import into Procreate via AirDrop or the Files app.'
+            + (allWarnings.length ? ` ${allWarnings.length} setting(s) couldn't be carried over — see steps 02 and 03.` : ''),
+          actions: [{ label: 'Download .brush', primary: true, onClick: () => download(brushOut.blob, brushOut.filename) }, detailsAction],
+        });
+      } catch (e) {
+        failRunning(STAGES, e, 'Drop a Clip Studio Paint sub tool file (.sut).');
+      }
+    }
+
+    // One file at a time: extra files in a drop are ignored, so say so.
+    setupDrop({ accept: ['.sut'], onFiles: latestOnly(async (files) => {
+      await run(files);
+      if (files.length > 1 && brushOut) log(5, `(${files.length - 1} more file(s) dropped — this converter takes one at a time)`, 'w');
+    }) });
+  </script>
+</body>
+</html>
