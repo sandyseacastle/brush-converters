@@ -147,4 +147,5 @@ least certain part.
 | `BrushSizeUnit` | 0 = pixels (all samples). |
 | `AntiAlias` | 0 = off (pixel-art brushes), 1 to 3 = on. |
 | `TextureCompositeMode` | 0 = multiply and 1 = subtract are assumed; other values are unknown. |
+| `TextureForPlot` | Inferred to be "apply texture to each tip" ("plot" is a dab); 0 in every sample, where the texture covers the stroke as a whole. The Krita converter then uses Subtract mode, because Krita textures each dab and Multiply builds back up to solid paint at tight spacing. |
 | `TextureBrightness` / `TextureContrast` | 100 = neutral. |

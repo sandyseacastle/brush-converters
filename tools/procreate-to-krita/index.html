@@ -65,20 +65,42 @@
     import { browserImaging, decodeImage, maskToCanvas } from '../../lib/image.js';
     import { writeBundle } from '../../lib/krita/bundle.js';
     import { procreateToKrita } from '../../lib/krita/from-procreate.js';
-    import { kppBytes } from '../../lib/krita/kpp.js';
+    import { kppBytes, THUMB_STYLES } from '../../lib/krita/kpp.js';
     import { ResourcePool, slug } from '../../lib/krita/preset.js';
     import { renderNav } from '../../lib/nav.js';
     import { readProcreateFiles, shapeMask, grainGray } from '../../lib/procreate/read.js';
-    import { badge, brushCard, detailsAction, download, failRunning, formatSize, imageCard, latestOnly, log, progress, readFiles, resetStages, setResult, setupDrop, uniqueNamer } from '../../lib/ui.js';
+    import { badge, brushCard, detailsAction, download, failRunning, formatSize, imageCard, latestOnly, log, progress, readFiles, resetStages, setResult, setupDrop, thumbStyleControl, uniqueNamer } from '../../lib/ui.js';
 
     renderNav('procreate', 'krita');
     const STAGES = 5;
     const MAX_PREVIEWS = 24;
-    const state = { files: null, presets: null, resources: null, failed: 0, warned: 0, output: null, setName: null };
+    const state = { files: null, presets: null, converted: null, style: null, gen: 0, resources: null, failed: 0, warned: 0, output: null, setName: null };
 
     const bundleName = () => document.getElementById('optName').value.trim()
       || state.setName
       || (state.files && state.files.length === 1 ? state.files[0].name.replace(/\.(brush|brushset|zip)$/i, '') : 'Procreate Brushes');
+
+    /** Stage 4, also re-run on its own when the thumbnail colours change. False if a newer run took over. */
+    async function writePresets() {
+      const gen = ++state.gen;
+      const { converted } = state;
+      const style = thumbStyle();
+      badge(4, 'run');
+      document.getElementById('o4').replaceChildren();
+      const written = [], cards = [];
+      for (const [i, { preset, filename }] of converted.entries()) {
+        progress(4, i + 1, converted.length);
+        const { data, thumbnail } = await kppBytes(preset, style);
+        if (gen !== state.gen) return false;
+        written.push({ filename, data, thumbnail, tags: preset.tags });
+        cards.push(brushCard({ ...preset, filename, thumbnail }));
+        log(4, `paintoppresets/${filename}  ${formatSize(data.length)}`, 'd');
+      }
+      document.getElementById('cards').replaceChildren(...cards);
+      badge(4, 'ok');
+      Object.assign(state, { presets: written, style });
+      return true;
+    }
 
     async function makeBundle() {
       const name = bundleName();
@@ -87,7 +109,7 @@
       document.getElementById('o5').replaceChildren();
       for (const r of state.resources) log(5, `${r.kind}/${r.filename}  ${formatSize(r.data.length)}`, 'd');
       const blob = await writeBundle(window.JSZip, state.presets, state.resources, {
-        name, author, tag: name,
+        name, author, tag: name, background: state.style.background,
         description: `Converted from Procreate with brush-converters (${state.presets.length} brushes)`,
       });
       state.output = { blob, filename: `${slug(name)}.bundle` };
@@ -105,6 +127,8 @@
     }
 
     async function run(files) {
+      state.gen++; // stops a thumbnail re-render still in flight
+      state.converted = null;
       Object.assign(state, { files, output: null, presets: null, setName: null });
       document.getElementById('mats').replaceChildren();
       document.getElementById('cards').replaceChildren();
@@ -163,30 +187,26 @@
         badge(3, 'ok');
 
         // 4. Presets
-        badge(4, 'run');
-        const written = [];
         const name = uniqueNamer();
-        const cards = document.getElementById('cards');
-        for (const [i, preset] of presets.entries()) {
-          progress(4, i + 1, presets.length);
-          const { data, thumbnail } = await kppBytes(preset);
-          const filename = name(slug(preset.name), '.kpp');
-          written.push({ filename, data, thumbnail });
-          cards.append(brushCard({ ...preset, filename, thumbnail }));
-          log(4, `paintoppresets/${filename}  ${formatSize(data.length)}`, 'd');
-        }
-        badge(4, 'ok');
+        Object.assign(state, {
+          converted: presets.map((preset) => ({ preset, filename: name(slug(preset.name), '.kpp') })),
+          resources: pool.resources, failed, warned: presets.filter((p) => p.warnings.length).length,
+        });
+        if (!(await writePresets())) return;
 
-        Object.assign(state, { presets: written, resources: pool.resources, failed, warned: presets.filter((p) => p.warnings.length).length });
+        // 5. Bundle
         await makeBundle();
       } catch (e) {
         state.presets = null;
+        state.converted = null;
         failRunning(STAGES, e, 'Drop Procreate .brush or .brushset files, or a .zip of them.');
       }
     }
 
     const convert = latestOnly(run);
     const rebundle = latestOnly(() => (state.presets ? makeBundle() : null));
+    const restyle = latestOnly(async () => { if (state.converted && await writePresets()) await makeBundle(); });
+    const thumbStyle = thumbStyleControl(document.querySelector('.opts'), THUMB_STYLES, () => restyle().catch((e) => failRunning(STAGES, e)));
     setupDrop({ accept: ['.brush', '.brushset', '.zip'], onFiles: convert });
     for (const id of ['optName', 'optAuthor']) {
       document.getElementById(id).addEventListener('change', () => rebundle().catch((e) => failRunning(STAGES, e)));

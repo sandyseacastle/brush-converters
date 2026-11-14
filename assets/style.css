@@ -219,3 +219,9 @@ table.ptbl { width: 100%; border-collapse: collapse; font-size: .7rem; }
 footer { margin-top: 3.5rem; padding-top: 1.1rem; border-top: 1px solid var(--rule); font-family: var(--serif); font-size: .88rem; color: var(--t3); }
 
 ::-webkit-scrollbar { width: 6px; height: 6px; } ::-webkit-scrollbar-track { background: var(--deep); } ::-webkit-scrollbar-thumb { background: var(--rule-hi); border-radius: 3px; }
+.opts .opt-colors { display: grid; grid-template-columns: 1fr 1fr; gap: .75rem; }
+.opts .opt-colors[hidden] { display: none; }
+.opts input[type=color] { padding: .2rem; height: 2.4rem; width: 100%; cursor: pointer; }
+.opts input[type=color]::-webkit-color-swatch-wrapper { padding: 0; }
+.opts input[type=color]::-webkit-color-swatch { border: none; border-radius: 5px; }
+.opts input[type=color]::-moz-color-swatch { border: none; border-radius: 5px; }
